@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Document Agent</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>📄 Autonomous Document Agent</h1>
+
+    <p class="subtitle">
+        Enter a document request and let the AI generate a professional DOCX.
+    </p>
+
+    <textarea
+        id="request"
+        placeholder="Example: Create a business proposal for a Coffee Shop..."
+    ></textarea>
+
+    <button onclick="generateDocument()">
+        Generate Document
+    </button>
+
+    <div id="status"></div>
+
+</div>
+
+<script src="/static/script.js"></script>
+
+</body>
+</html>
