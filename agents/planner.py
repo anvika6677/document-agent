@@ -8,19 +8,15 @@ class PlannerAgent:
     def __init__(self):
         self.llm = LLMService()
 
-    def create_plan(self, request: str):
-
-        prompt = PLANNER_PROMPT.format(
-            request=request
-        )
-
+    def create_plan(self, request: str) -> list[dict]:
+        prompt = PLANNER_PROMPT.format(request=request)
         response = self.llm.generate(prompt)
 
         try:
-            return extract_json(response)
-
+            plan = extract_json(response)
+            if isinstance(plan, list):
+                return plan
+            return []
         except Exception as e:
-            print("\nPlanner JSON Parse Error:")
-            print(e)
-            print(response)
+            print(f"[PlannerAgent Error]: {e}")
             return []
