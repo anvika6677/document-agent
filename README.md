@@ -1,356 +1,174 @@
-# 🤖 Autonomous Document Agent
+# 📄 Autonomous AI Document Generation Agent
 
-An AI-powered multi-agent document generation system that automatically creates structured Microsoft Word documents from natural language requests. The system uses a **Planner Agent** to design the document outline and a **Worker Agent** to generate high-quality content for each section, orchestrated through a FastAPI backend with an interactive web interface.
+An enterprise-ready, stateful multi-agent system built with **LangGraph**, **FastAPI**, **Tavily Search API**, and **OpenRouter LLMs**. The agent plans document outlines, conducts real-time web research, synthesizes technical content, and automatically compiles production-ready Microsoft Word documents (`.docx`) with formal citations.
+📈 System Evolution & Architecture Journey
+This system transitioned through three distinct engineering phases, moving from a simple procedural prototype to a production-grade state machine.
 
----
+Phase 1: Baseline Prototype (v1.0)
+Architecture: Linear procedural script (orchestrator.py).
 
-# 📌 Features
+Control Flow: Sequential method execution (Planner -> Worker -> Writer).
 
-- Multi-Agent Architecture
-  - Planner Agent
-  - Worker Agent
-  - Orchestrator
+Data Handling: Ephemeral local variables and return tuples.
 
-- AI-powered document generation
+Limitations: Prone to hallucinating on current events due to lack of web grounding; strict JSON parsing crashed whenever models returned markdown code fences or conversational text.
 
-- Dynamic user input through web interface
+Phase 2: Tool Integration & RAG Engine (v2.0)
+Search Grounding: Integrated Tavily AI Search API for real-time fact retrieval.
 
-- Automatic Microsoft Word (.docx) generation
+Automated Citations: Designed an automated bibliography compiler that formats in-text citations and creates a formal "References & Sources Cited" section with source domains and retrieval dates.
 
-- FastAPI REST API
+Parser Resilience: Implemented regex pattern matching and json.JSONDecoder().raw_decode() in utils/json_parser.py to prevent "Extra data" errors caused by trailing LLM commentary.
 
-- Interactive HTML/CSS/JavaScript frontend
+Phase 3: Stateful Multi-Agent System (v3.0 - Current)
+Architecture: Compiled LangGraph StateGraph state machine (graph_orchestrator.py).
 
-- Robust JSON parsing for LLM responses
+Data Contract: Centralized, typed AgentState (TypedDict) shared across isolated nodes.
 
-- Automatic fallback across multiple OpenRouter free models
+Separation of Concerns: Split tasks into dedicated graph nodes (planner_node, researcher_node, writer_node, docx_node).
 
-- Timestamp-based document storage
+Model Failover: Added dynamic fallback routing across OpenRouter models to absorb 404 endpoint drops and rate limits without halting pipeline execution.
 
-- Error handling and validation
+⚖️ Architectural Shift: Before vs. After LangGraph
+Plaintext
+BEFORE (Procedural Pipeline):
+User Request ──> orchestrator.py ──> PlannerAgent() ──(tuples)──> WorkerAgent() ──(dict)──> DocumentWriter()
+[Limitation: Rigid sequential execution, coupled responsibilities, no audit trail]
 
-- Optimized to use only **2 AI API calls** per document generation
+AFTER (LangGraph State Machine):
+                      ┌──────────────────────────────────────────────┐
+                      │            TypedDict: AgentState             │
+                      │  (request, plan, context, sources, docs)    │
+                      └──────┬──────────────┬──────────────┬─────────┘
+                             │              │              │
+                             ▼              ▼              ▼
+[START] ──> [planner_node] ──┴─> [researcher_node] ───────┴─> [writer_node] ──> [docx_node] ──> [END]
+                                       │
+                                (Tavily AI Tool)
+🌟 Core Features
+Autonomous Document Planning: Breaks user prompts into logical sections and formulates targeted search queries for sections requiring live data.
 
----
+Real-Time Web Grounding: Parallel execution of web search queries using Tavily AI Search.
 
-# 🏗️ System Architecture
+Automated Bibliographies: Generates professional citations with domains and timestamps directly in the final document.
 
-```
-                    +----------------------+
-                    |       User           |
-                    +----------+-----------+
-                               |
-                               |
-                               v
-                +------------------------------+
-                | HTML / CSS / JavaScript UI   |
-                +--------------+---------------+
-                               |
-                               |
-                               v
-                      FastAPI Backend
-                               |
-                               |
-                               v
-                    +------------------+
-                    |   Orchestrator   |
-                    +------------------+
-                      |            |
-          Step 1      |            | Step 2
-                      |            |
-                      v            v
-              Planner Agent    Worker Agent
-                      |            |
-         Generates Outline   Generates Content
-                      |            |
-                      +------+-----+
-                             |
-                             v
-                    Document Writer
-                             |
-                             v
-              Microsoft Word (.docx)
-                             |
-                             v
-                      Download to User
-```
+Resilient Output Parsing: Recovers valid JSON data even when models produce trailing conversational filler.
 
----
+Dynamic Failover: Automatically switches to secondary free models if an endpoint is deprecated or throttled.
 
-# 📁 Project Structure
+Styled .docx Export: Uses python-docx to apply visual hierarchy, bold titles, callouts, and clean margins.
 
-```
+🏗️ Pipeline Execution Flow
+Plaintext
+       [User Input Topic]
+                │
+                ▼
+    ┌───────────────────────┐
+    │     planner_node      │  --> Creates outline & generates search queries
+    └───────────────────────┘
+                │
+                ▼
+    ┌───────────────────────┐
+    │    researcher_node    │  --> Calls Tavily Search & collects source links
+    └───────────────────────┘
+                │
+                ▼
+    ┌───────────────────────┐
+    │      writer_node      │  --> Synthesizes grounded content from research
+    └───────────────────────┘
+                │
+                ▼
+    ┌───────────────────────┐
+    │       docx_node       │  --> Assembles formatted Word document
+    └───────────────────────┘
+                │
+                ▼
+     [.docx Download Stream]
+📁 Project Directory Structure
+Plaintext
 document-agent/
-
-├── agents/
-│   ├── planner.py
-│   └── worker.py
 │
-├── prompts/
+├── agents/                     # LangGraph agents & state schema
+│   ├── __init__.py
+│   ├── planner.py              # Outline & search query planner
+│   ├── worker.py               # Drafting & synthesis agent
+│   └── state.py                # TypedDict AgentState definition
+│
+├── core/                       # Core application configurations
+│   ├── __init__.py
+│   └── config.py               # Environment variable loading
+│
+├── prompts/                    # System prompts & instructions
+│   ├── __init__.py
 │   ├── planner_prompt.py
 │   └── worker_prompt.py
 │
-├── services/
-│   ├── llm_service.py
-│   └── document_writer.py
+├── services/                   # Business logic & external clients
+│   ├── __init__.py
+│   ├── document_writer.py      # python-docx formatting & citation engine
+│   ├── llm_service.py          # OpenRouter client & API caller
+│   └── model_manager.py        # Model failover routing logic
 │
-├── schemas/
-│   └── document_request.py
+├── tools/                      # External tool calling
+│   ├── __init__.py
+│   └── search_tool.py          # Tavily search API wrapper
 │
-├── templates/
-│   └── index.html
+├── utils/                      # Helper utilities
+│   └── json_parser.py          # Resilient raw_decode JSON parser
 │
-├── static/
-│   ├── style.css
-│   └── script.js
+├── static/                     # Web UI stylesheets & scripts
+├── templates/                  # Frontend HTML templates
+├── outputs/                    # Generated .docx files (git-ignored)
 │
-├── utils/
-│   └── json_parser.py
-│
-├── outputs/
-│
-├── app.py
-├── orchestrator.py
-├── requirements.txt
-├── .env
-└── README.md
-```
+├── app.py                      # FastAPI application entrypoint
+├── graph_orchestrator.py       # Compiled LangGraph workflow
+├── orchestrator.py             # Legacy procedural script (retained for reference)
+├── requirements.txt            # Project dependencies
+├── .gitignore                  # Git ignore rules
+└── README.md                   # System documentation
+🚀 Getting Started
+1. Prerequisites
+Python 3.10+
 
----
+An OpenRouter API Key (https://openrouter.ai/)
 
-# ⚙️ Technologies Used
+A Tavily Search API Key (https://tavily.com/)
 
-- Python 3.x
-- FastAPI
-- OpenRouter API
-- OpenAI Python SDK
-- HTML
-- CSS
-- JavaScript
-- Jinja2
-- python-docx
-- python-dotenv
-
----
-
-# 🚀 Installation
-
-Clone the repository
-
-```bash
-git clone <repository-url>
-```
-
-Move into the project directory
-
-```bash
+2. Installation
+Bash
+# Clone the repository
+git clone [https://github.com/anvika6677/document-agent.git](https://github.com/anvika6677/document-agent.git)
 cd document-agent
-```
 
-Create a virtual environment
-
-```bash
+# Create and activate virtual environment (Windows)
 python -m venv venv
-```
-
-Activate the virtual environment
-
-### Windows
-
-```bash
 venv\Scripts\activate
-```
 
-### Linux / macOS
+# macOS / Linux:
+# python3 -m venv venv && source venv/bin/activate
 
-```bash
-source venv/bin/activate
-```
-
-Install dependencies
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
+3. Environment Configuration
+Create a .env file in the project root:
 
----
-
-# 🔑 Environment Variables
-
-Create a `.env` file in the project root.
-
-```env
-OPENROUTER_API_KEY=your_api_key_here
-```
-
-Obtain a free API key from:
-
-https://openrouter.ai
-
----
-
-# ▶️ Running the Project
-
-Start the FastAPI server
-
-```bash
+Code snippet
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+TAVILY_API_KEY=your_tavily_api_key_here
+4. Running the Application
+Bash
 uvicorn app:app --reload
-```
+Open your browser at http://127.0.0.1:8000, enter a topic, and download the generated .docx document.
 
-Open your browser
+🛠️ Technology Stack
+Workflow Orchestration: LangGraph, LangChain Core
 
-```
-http://127.0.0.1:8000
-```
+Web Framework: FastAPI, Uvicorn, Pydantic
 
----
+Search Tool: Tavily AI Search API
 
-# 📝 Example Usage
+LLM Provider: OpenRouter API
 
-User Request
+Document Generation: python-docx
 
-```
-Create a comprehensive business plan for an online grocery delivery startup.
-```
-
-Planner Agent generates
-
-```
-[
-    "Executive Summary",
-    "Company Overview",
-    "Market Analysis",
-    "Products and Services",
-    "Marketing Strategy",
-    "Financial Plan",
-    "Conclusion"
-]
-```
-
-Worker Agent generates detailed content for each section.
-
-Finally, the system produces a downloadable Microsoft Word document.
-
----
-
-# 🌐 API Endpoints
-
-## Home Page
-
-```
-GET /
-```
-
-Returns the web interface.
-
----
-
-## Generate Document
-
-```
-POST /generate-document
-```
-
-Request Body
-
-```json
-{
-    "request": "Create a business proposal for a coffee shop."
-}
-```
-
-Response
-
-```
-Microsoft Word (.docx)
-```
-
----
-
-# 🔄 Workflow
-
-1. User enters a document request.
-
-2. FastAPI sends the request to the Orchestrator.
-
-3. Planner Agent creates the document outline.
-
-4. Worker Agent generates content for each section.
-
-5. Document Writer creates a formatted Microsoft Word document.
-
-6. The document is returned to the user for download.
-
----
-
-# 📊 AI Workflow
-
-```
-User Request
-      │
-      ▼
-Planner Agent
-      │
-      ▼
-Document Sections
-      │
-      ▼
-Worker Agent
-      │
-      ▼
-Generated Content
-      │
-      ▼
-Document Writer
-      │
-      ▼
-Word Document (.docx)
-```
-
----
-
-# ✨ Key Design Decisions
-
-- Multi-agent architecture for modularity.
-- Planner and Worker responsibilities are separated.
-- Robust JSON parser handles inconsistent LLM outputs.
-- Uses multiple OpenRouter free models with automatic fallback.
-- Optimized to minimize API usage by generating the entire document in only **2 LLM calls** (1 Planner + 1 Worker).
-- Timestamped output files prevent overwriting previous documents.
-
----
-
-# 📸 Screenshots
-
-Add screenshots here after running the project.
-
-Example:
-
-- Home Page
-- Document Generation in Progress
-- Generated Word Document
-
----
-
-# 🔮 Future Enhancements
-
-- PDF document generation
-- Rich text formatting
-- Cloud deployment
-- User authentication
-- Document templates
-- AI-generated document titles
-- Multi-language document generation
-- Document history management
-
----
-
-# 👨‍💻 Author
-
-Developed as part of an AI Agent assignment using Python, FastAPI, OpenRouter, and a Multi-Agent Architecture.
-
----
-
-# 📄 License
-
-This project is developed for educational purposes.
+Frontend: HTML5, CSS3, Vanilla JavaScript
